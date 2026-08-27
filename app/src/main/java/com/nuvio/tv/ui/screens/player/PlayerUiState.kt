@@ -168,6 +168,7 @@ data class PlayerUiState(
     val pendingSeekPosition: Long? = null, // For resuming from saved progress
     // Parental guide overlay
     val parentalWarnings: List<ParentalWarning> = emptyList(),
+    val parentalGenres: List<String> = emptyList(),
     val showParentalGuide: Boolean = false,
     val parentalGuideHasShown: Boolean = false,
     // Skip intro

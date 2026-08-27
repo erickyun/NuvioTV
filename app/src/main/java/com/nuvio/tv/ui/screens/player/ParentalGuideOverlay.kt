@@ -46,13 +46,28 @@ private val ROW_GAP = NuvioTheme.spacing.xxs
 @Composable
 fun ParentalGuideOverlay(
     warnings: List<ParentalWarning>,
+    genres: List<String> = emptyList(),
     isVisible: Boolean,
     onAnimationComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (warnings.isEmpty()) return
+    val entries = remember(genres, warnings) {
+        buildList<Pair<String, String?>>() {
+            val seenGenres = mutableSetOf<String>()
+            genres.forEach { rawGenre ->
+                val genre = rawGenre.trim()
+                if (genre.isNotBlank() && seenGenres.add(genre.lowercase())) {
+                    add(genre to null)
+                }
+            }
+            warnings.forEach { warning ->
+                add(warning.label to warning.severity)
+            }
+        }
+    }
+    if (entries.isEmpty()) return
 
-    val count = warnings.size
+    val count = entries.size
     val totalLineHeight = (ROW_HEIGHT.value * count) + (ROW_GAP.value * (count - 1))
 
     val containerAlpha = remember { Animatable(0f) }
@@ -130,7 +145,7 @@ fun ParentalGuideOverlay(
             modifier = Modifier.padding(start = 10.dp),
             verticalArrangement = Arrangement.spacedBy(ROW_GAP)
         ) {
-            warnings.forEachIndexed { index, warning ->
+            entries.forEachIndexed { index, entry ->
                 Row(
                     modifier = Modifier
                         .height(ROW_HEIGHT)
@@ -138,21 +153,23 @@ fun ParentalGuideOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = warning.label,
+                        text = entry.first,
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.85f),
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        text = " · ",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.4f),
-                    )
-                    Text(
-                        text = warning.severity,
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.5f),
-                    )
+                    entry.second?.let { severity ->
+                        Text(
+                            text = " · ",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.4f),
+                        )
+                        Text(
+                            text = severity,
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.5f),
+                        )
+                    }
                 }
             }
         }

@@ -258,6 +258,8 @@ data class PlayerSettings(
     val dv7LibdoviModeOverride: Int = -1,
     val stripHdr10PlusSei: Boolean = false,
     val mpvHardwareDecodeMode: MpvHardwareDecodeMode = MpvHardwareDecodeMode.AUTO_SAFE,
+    val mpvDebandEnabled: Boolean = false,
+    val mpvDitherEnabled: Boolean = false,
     // Display settings
     val frameRateMatchingMode: FrameRateMatchingMode = FrameRateMatchingMode.OFF,
     val resolutionMatchingEnabled: Boolean = false,
@@ -517,6 +519,8 @@ class PlayerSettingsDataStore @Inject constructor(
     private val dv7LibdoviModeOverrideKey = intPreferencesKey("dv7_libdovi_mode_override")
     private val stripHdr10PlusSeiKey = booleanPreferencesKey("strip_hdr10plus_sei")
     private val mpvHardwareDecodeModeKey = stringPreferencesKey("mpv_hardware_decode_mode")
+    private val mpvDebandEnabledKey = booleanPreferencesKey("mpv_deband_enabled")
+    private val mpvDitherEnabledKey = booleanPreferencesKey("mpv_dither_enabled")
     private val frameRateMatchingKey = booleanPreferencesKey("frame_rate_matching")
     private val frameRateMatchingModeKey = stringPreferencesKey("frame_rate_matching_mode")
     private val resolutionMatchingEnabledKey = booleanPreferencesKey("resolution_matching_enabled")
@@ -867,6 +871,8 @@ class PlayerSettingsDataStore @Inject constructor(
                 dv7LibdoviModeOverride = (prefs[dv7LibdoviModeOverrideKey] ?: -1).coerceIn(-1, 4),
                 stripHdr10PlusSei = prefs[stripHdr10PlusSeiKey] ?: false,
                 mpvHardwareDecodeMode = parseMpvHardwareDecodeMode(prefs[mpvHardwareDecodeModeKey]),
+                mpvDebandEnabled = prefs[mpvDebandEnabledKey] ?: false,
+                mpvDitherEnabled = prefs[mpvDitherEnabledKey] ?: false,
                 frameRateMatchingMode = prefs[frameRateMatchingModeKey]?.let {
                     runCatching { FrameRateMatchingMode.valueOf(it) }.getOrNull()
                 } ?: if (prefs[frameRateMatchingKey] == true) FrameRateMatchingMode.START_STOP else FrameRateMatchingMode.OFF,
@@ -1447,6 +1453,18 @@ class PlayerSettingsDataStore @Inject constructor(
     suspend fun setMpvHardwareDecodeMode(mode: MpvHardwareDecodeMode) {
         store().edit { prefs ->
             prefs[mpvHardwareDecodeModeKey] = mode.name
+        }
+    }
+
+    suspend fun setMpvDebandEnabled(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[mpvDebandEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setMpvDitherEnabled(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[mpvDitherEnabledKey] = enabled
         }
     }
 

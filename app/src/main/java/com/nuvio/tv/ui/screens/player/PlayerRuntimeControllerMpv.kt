@@ -23,6 +23,8 @@ internal fun PlayerRuntimeController.attachMpvView(view: NuvioMpvSurfaceView?) {
     runCatching {
         performPendingMpvHardRestartIfNeeded(view)
         view.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
+        view.applyDebandEnabled(mpvDebandEnabledSetting)
+        view.applyDitherEnabled(mpvDitherEnabledSetting)
         view.setMedia(currentStreamUrl, currentHeaders)
         view.setPlaybackSpeed(_uiState.value.playbackSpeed)
         view.applyAudioAmplificationDb(_uiState.value.audioAmplificationDb)
@@ -52,6 +54,7 @@ internal fun PlayerRuntimeController.attachMpvView(view: NuvioMpvSurfaceView?) {
         startWatchProgressSaving()
         updateMpvAvailableTracks()
         scheduleHideControls()
+        tryShowParentalGuide()
         emitScrobbleStart()
     }.onFailure {
         val detailedError = it.message ?: context.getString(com.nuvio.tv.R.string.player_error_mpv_surface_failed)
@@ -116,6 +119,8 @@ internal fun PlayerRuntimeController.initializeMpvPlayer(
         )
         performPendingMpvHardRestartIfNeeded(view)
         view.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
+        view.applyDebandEnabled(mpvDebandEnabledSetting)
+        view.applyDitherEnabled(mpvDitherEnabledSetting)
         val initialResumePosition = resolvePendingInitialResumePosition()
             .takeIf { it > 0L }
             ?: (_uiState.value.pendingSeekPosition?.coerceAtLeast(0L) ?: 0L)
@@ -163,6 +168,7 @@ internal fun PlayerRuntimeController.initializeMpvPlayer(
         startWatchProgressSaving()
         updateMpvAvailableTracks()
         scheduleHideControls()
+        tryShowParentalGuide()
         emitScrobbleStart()
     }.onFailure { error ->
         Log.e(PlayerRuntimeController.TAG, "libmpv initialize failed: ${error.message}", error)

@@ -68,6 +68,8 @@ internal fun LazyListScope.trailerAndAudioSettingsItems(
     onShowAudioOutputChannelsDialog: () -> Unit,
     onShowDecoderPriorityDialog: () -> Unit,
     onShowMpvHardwareDecodeModeDialog: () -> Unit,
+    onSetMpvDebandEnabled: (Boolean) -> Unit,
+    onSetMpvDitherEnabled: (Boolean) -> Unit,
     onShowDv7HandlingModeDialog: () -> Unit,
     onSetDownmixEnabled: (Boolean) -> Unit,
     onSetMaintainOriginalAudioOnDownmix: (Boolean) -> Unit,
@@ -368,6 +370,30 @@ internal fun LazyListScope.trailerAndAudioSettingsItems(
             onFocused = onItemFocused,
             enabled = enabled
         )
+        }
+
+        item(key = "audio_mpv_deband") {
+            ToggleSettingsItem(
+                icon = Icons.Default.Tune,
+                title = stringResource(R.string.audio_mpv_deband_title),
+                subtitle = stringResource(R.string.audio_mpv_deband_sub),
+                isChecked = playerSettings.mpvDebandEnabled,
+                onCheckedChange = onSetMpvDebandEnabled,
+                onFocused = onItemFocused,
+                enabled = enabled
+            )
+        }
+
+        item(key = "audio_mpv_dither") {
+            ToggleSettingsItem(
+                icon = Icons.Default.Tune,
+                title = stringResource(R.string.audio_mpv_dither_title),
+                subtitle = stringResource(R.string.audio_mpv_dither_sub),
+                isChecked = playerSettings.mpvDitherEnabled,
+                onCheckedChange = onSetMpvDitherEnabled,
+                onFocused = onItemFocused,
+                enabled = enabled
+            )
         }
     }
 }

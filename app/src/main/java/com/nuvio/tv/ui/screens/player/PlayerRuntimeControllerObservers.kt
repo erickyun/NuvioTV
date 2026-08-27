@@ -383,6 +383,19 @@ internal fun PlayerRuntimeController.observeSubtitleSettings() {
                 mpvView?.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
             }
 
+            val previousMpvDebandEnabled = mpvDebandEnabledSetting
+            val previousMpvDitherEnabled = mpvDitherEnabledSetting
+            mpvDebandEnabledSetting = settings.mpvDebandEnabled
+            mpvDitherEnabledSetting = settings.mpvDitherEnabled
+            if (isUsingMpvEngine()) {
+                if (previousMpvDebandEnabled != mpvDebandEnabledSetting) {
+                    mpvView?.applyDebandEnabled(mpvDebandEnabledSetting)
+                }
+                if (previousMpvDitherEnabled != mpvDitherEnabledSetting) {
+                    mpvView?.applyDitherEnabled(mpvDitherEnabledSetting)
+                }
+            }
+
             val resolvedAudioLanguages = resolvePreferredAudioLanguages(
                 preferredAudioLanguage = settings.preferredAudioLanguage,
                 secondaryPreferredAudioLanguage = settings.secondaryPreferredAudioLanguage,

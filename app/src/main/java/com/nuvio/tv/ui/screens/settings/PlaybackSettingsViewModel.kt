@@ -187,6 +187,14 @@ class PlaybackSettingsViewModel @Inject constructor(
         playerSettingsDataStore.setMpvHardwareDecodeMode(mode)
     }
 
+    suspend fun setMpvDebandEnabled(enabled: Boolean) {
+        playerSettingsDataStore.setMpvDebandEnabled(enabled)
+    }
+
+    suspend fun setMpvDitherEnabled(enabled: Boolean) {
+        playerSettingsDataStore.setMpvDitherEnabled(enabled)
+    }
+
 
     suspend fun setDv5ToDv81Enabled(enabled: Boolean) {
         playerSettingsDataStore.setDv5ToDv81Enabled(enabled)

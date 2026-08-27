@@ -3112,4 +3112,8 @@
     <string name="stream_test_video_bitrate">Average Video Bitrate: %1$s</string>
     <string name="stream_test_error_connection">Connection failed. The last played stream link may have expired or is unreachable. Please play the video again and retry.</string>
 
+    <string name="audio_mpv_deband_title">MPV Deband</string>
+    <string name="audio_mpv_deband_sub">Reduce visible color banding in gradients</string>
+    <string name="audio_mpv_dither_title">MPV Dither</string>
+    <string name="audio_mpv_dither_sub">Error-diffusion dithering (Sierra Lite)</string>
 </resources>

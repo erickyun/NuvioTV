@@ -216,6 +216,8 @@ internal fun PlayerRuntimeController.initializePlayer(
             )
             mpvPreferredAudioLanguages = preferredAudioLanguages
             mpvHardwareDecodeModeSetting = playerSettings.mpvHardwareDecodeMode
+            mpvDebandEnabledSetting = playerSettings.mpvDebandEnabled
+            mpvDitherEnabledSetting = playerSettings.mpvDitherEnabled
             var effectiveInternalPlayerEngine = overrideInternalPlayerEngine ?: playerSettings.internalPlayerEngine
             if (effectiveInternalPlayerEngine == InternalPlayerEngine.AUTO) {
                 effectiveInternalPlayerEngine = resolveAutoInternalPlayerEngine()

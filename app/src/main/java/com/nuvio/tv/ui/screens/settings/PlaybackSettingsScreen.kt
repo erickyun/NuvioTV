@@ -207,6 +207,12 @@ fun PlaybackSettingsContent(
                 onShowAudioOutputChannelsDialog = { openDialog { showAudioOutputChannelsDialog = true } },
                 onShowDecoderPriorityDialog = { openDialog { showDecoderPriorityDialog = true } },
                 onShowMpvHardwareDecodeModeDialog = { openDialog { showMpvHardwareDecodeModeDialog = true } },
+                onSetMpvDebandEnabled = { enabled ->
+                    coroutineScope.launch { viewModel.setMpvDebandEnabled(enabled) }
+                },
+                onSetMpvDitherEnabled = { enabled ->
+                    coroutineScope.launch { viewModel.setMpvDitherEnabled(enabled) }
+                },
                 onShowLanguageDialog = { openDialog { showLanguageDialog = true } },
                 onShowSecondaryLanguageDialog = { openDialog { showSecondaryLanguageDialog = true } },
                 onShowTextColorDialog = { openDialog { showTextColorDialog = true } },

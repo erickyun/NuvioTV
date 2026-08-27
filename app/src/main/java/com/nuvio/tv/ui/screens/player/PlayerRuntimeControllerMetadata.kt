@@ -70,8 +70,12 @@ internal fun PlayerRuntimeController.applyMetaDetails(meta: Meta) {
         state.copy(
             description = description ?: state.description,
             castMembers = if (meta.castMembers.isNotEmpty()) meta.castMembers else state.castMembers,
+            parentalGenres = meta.genres,
             isNextEpisodeMetadataResolved = true
         )
+    }
+    if (hasRenderedFirstFrame || (isUsingMpvEngine() && mpvView?.isPlayingNow() == true)) {
+        tryShowParentalGuide()
     }
 }
 
@@ -423,8 +427,11 @@ private fun SkipInterval.autoSkipKey(): String =
     "$provider:$type:$startTime:$endTime"
 
 internal fun PlayerRuntimeController.tryShowParentalGuide() {
+    if (!parentalGuideEnabled) return
     val state = _uiState.value
-    if (!state.parentalGuideHasShown && state.parentalWarnings.isNotEmpty() && !playbackStartedForParentalGuide) {
+    val hasParentalOverlayContent =
+        state.parentalWarnings.isNotEmpty() || state.parentalGenres.isNotEmpty()
+    if (!state.parentalGuideHasShown && hasParentalOverlayContent && !playbackStartedForParentalGuide) {
         playbackStartedForParentalGuide = true
         _uiState.update { it.copy(showParentalGuide = true, parentalGuideHasShown = true) }
     }

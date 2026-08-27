@@ -247,6 +247,30 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
+    fun applyDebandEnabled(enabled: Boolean) {
+        if (!initialized) return
+        runCatching {
+            mpv.setPropertyBoolean("deband", enabled)
+        }.onFailure {
+            Log.w(TAG, "Failed to apply mpv deband (enabled=$enabled): ${it.message}")
+        }
+    }
+
+    fun applyDitherEnabled(enabled: Boolean) {
+        if (!initialized) return
+        runCatching {
+            if (enabled) {
+                mpv.setPropertyString("dither-depth", "auto")
+                mpv.setPropertyString("dither", "error-diffusion")
+                mpv.setPropertyString("error-diffusion", "sierra-lite")
+            } else {
+                mpv.setPropertyString("dither", "no")
+            }
+        }.onFailure {
+            Log.w(TAG, "Failed to apply mpv dither (enabled=$enabled): ${it.message}")
+        }
+    }
+
     fun setSubtitleDelayMs(delayMs: Int) {
         if (!initialized) return
         runCatching {
