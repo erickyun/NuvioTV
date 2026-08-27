@@ -34,20 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('.github/scripts/apply-only-additions.py')
-          text = p.read_text(encoding='utf-8')
-          old = '''                ParentalGuideOverlay(
-                    warnings = uiState.parentalWarnings,
-                    isVisible = uiState.showParentalGuide,'''
-          new = '''        ParentalGuideOverlay(
-            warnings = uiState.parentalWarnings,
-            isVisible = uiState.showParentalGuide,'''
-          if old not in text:
-              raise SystemExit('Expected strict PlayerScreen anchor was not found in helper script')
-          p.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
+          python3 -c 'from pathlib import Path; p=Path(".github/scripts/apply-only-additions.py"); t=p.read_text(encoding="utf-8"); old="                ParentalGuideOverlay(\n                    warnings = uiState.parentalWarnings,\n                    isVisible = uiState.showParentalGuide,"; new="        ParentalGuideOverlay(\n            warnings = uiState.parentalWarnings,\n            isVisible = uiState.showParentalGuide,"; assert t.count(old)==1, "strict PlayerScreen helper anchor missing"; p.write_text(t.replace(old,new,1),encoding="utf-8")'
           python3 .github/scripts/apply-only-additions.py
           git checkout -- .github/scripts/apply-only-additions.py
 
