@@ -1,0 +1,130 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    paths:
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: custom-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
+      LOCAL_DEV_PROPERTIES_BASE64: ${{ secrets.LOCAL_DEV_PROPERTIES_BASE64 }}
+      CI_USE_DEBUG_SIGNING: "true"
+
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Apply only requested additions
+        run: python3 .github/scripts/apply-only-additions.py
+
+      - name: Verify additive scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only)"
+          if [[ -z "$changed" ]]; then
+            echo "No source changes were produced." >&2
+            exit 1
+          fi
+
+          while IFS= read -r path; do
+            case "$path" in
+              app/src/main/java/com/nuvio/tv/data/local/PlayerSettingsDataStore.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsViewModel.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackAudioSettings.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsSections.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsScreen.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeController.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerInitialization.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerObservers.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMpv.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt|\
+              app/src/main/java/com/nuvio/tv/ui/screens/player/ParentalGuideOverlay.kt|\
+              app/src/main/res/values/strings.xml)
+                ;;
+              *)
+                echo "Unexpected changed file: $path" >&2
+                exit 1
+                ;;
+            esac
+          done <<< "$changed"
+
+          echo "Verified changed files:"
+          printf '%s\n' "$changed"
+
+      - name: Commit requested additions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java app/src/main/res/values/strings.xml
+          git commit -m "Add MPV deband, dither and genre overlay [skip ci]"
+          git push origin HEAD:dev
+
+      - name: Configure existing local properties when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${LOCAL_PROPERTIES_BASE64:-}" ]]; then
+            printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
+          fi
+          if [[ -n "${LOCAL_DEV_PROPERTIES_BASE64:-}" ]]; then
+            printf '%s' "$LOCAL_DEV_PROPERTIES_BASE64" | base64 --decode > local.dev.properties
+          fi
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build full release APK
+        run: ./gradlew :app:assembleFullRelease --stacktrace
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: build
+          path: app/build/outputs/apk/full/release/*.apk
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk/full/release -maxdepth 1 -type f -name '*.apk' -print | sort)
+          if (( ${#apks[@]} == 0 )); then
+            echo "No APK produced." >&2
+            exit 1
+          fi
+          target_sha="$(git rev-parse HEAD)"
+          tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" \
+            --target "$target_sha" \
+            --title "build" \
+            --notes $'Only requested additions:\n- MPV Deband toggle\n- MPV Dither toggle directly below Deband\n- dither-depth=auto\n- dither=error-diffusion\n- error-diffusion=sierra-lite\n- Always include genres in the existing parental/content-warning overlay\n\nNo existing app settings were intentionally removed or replaced.' \
+            "${apks[@]}"
