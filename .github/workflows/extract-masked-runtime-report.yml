@@ -1,0 +1,124 @@
+name: Generate masked official runtime mapping report
+
+on:
+  push:
+    branches:
+      - custom-mpv-genre
+    paths:
+      - .github/workflows/extract-masked-runtime-report.yml
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: custom-mpv-genre
+          fetch-depth: 1
+
+      - name: Decompile official APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/nuvio.apk \
+            https://github.com/NuvioMedia/NuvioTV/releases/download/0.8.10-beta/app-full-arm64-v8a-release.apk
+          curl -L --fail --retry 3 -o /tmp/jadx.zip \
+            https://github.com/skylot/jadx/releases/download/v1.5.3/jadx-1.5.3.zip
+          unzip -q /tmp/jadx.zip -d /tmp/jadx-bin
+          /tmp/jadx-bin/bin/jadx --no-res -d /tmp/nuvio-src /tmp/nuvio.apk >/dev/null 2>&1 || true
+
+      - name: Build masked targeted report
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('/tmp/nuvio-src/sources')
+          out = []
+          literal_re = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+          tokenish = re.compile(r'^[A-Za-z0-9_.-]{16,}$')
+
+          def mask(v):
+              if v.startswith(('http://', 'https://')):
+                  return v
+              if v in {'client_id','client_secret','api_key','device_code','code','token','authorization','trakt-api-key'}:
+                  return v
+              if len(v) >= 16 and tokenish.fullmatch(v):
+                  return f'<TOKEN len={len(v)} prefix={v[:4]} suffix={v[-4:]}>'
+              return v
+
+          def safe_line(line):
+              return literal_re.sub(lambda m: '"' + mask(m.group(1)) + '"', line)
+
+          needles = [
+              'TraktDeviceCodeRequestDto(',
+              'TraktDeviceTokenRequestDto(',
+              'TraktRevokeRequestDto(',
+              'startDeviceAuthorization(',
+              'redeemDeviceAuthorization(',
+              'TmdbApi',
+              'api_key',
+              'themoviedb',
+              'SimklApiConfiguration',
+              'defaultSimklApiConfiguration',
+              'premiumizeApi',
+              'PREMIUMIZE_CLIENT_ID',
+              'trakt-api-key',
+              'trailer2.nuvioapp.space',
+              'imdb.tapframe.space',
+              'api.introdb.app',
+              'supabase.co'
+          ]
+
+          candidates = []
+          for p in root.rglob('*.java'):
+              try:
+                  lines = p.read_text(errors='ignore').splitlines()
+              except Exception:
+                  continue
+              for i, line in enumerate(lines):
+                  if any(n.lower() in line.lower() for n in needles):
+                      candidates.append((p, i, lines))
+
+          out.append('MASKED_TARGET_CONTEXTS_BEGIN')
+          for p, i, lines in candidates[:260]:
+              out.append(f'--- {p.relative_to(root)}:{i+1} ---')
+              for j in range(max(0, i-14), min(len(lines), i+15)):
+                  out.append(f'{j+1}: {safe_line(lines[j])}')
+          out.append(f'TOTAL_HITS={len(candidates)}')
+          out.append('MASKED_TARGET_CONTEXTS_END')
+
+          # Long literals inventory with source location, but never literal value.
+          out.append('TOKEN_LOCATION_INVENTORY_BEGIN')
+          seen = set()
+          for p in root.rglob('*.java'):
+              try:
+                  lines = p.read_text(errors='ignore').splitlines()
+              except Exception:
+                  continue
+              for i, line in enumerate(lines):
+                  for m in literal_re.finditer(line):
+                      v = m.group(1)
+                      if len(v) < 20 or not tokenish.fullmatch(v):
+                          continue
+                      key = (str(p), i, len(v), v[:4], v[-4:])
+                      if key in seen:
+                          continue
+                      seen.add(key)
+                      out.append(f'{p.relative_to(root)}:{i+1}: len={len(v)} prefix={v[:4]} suffix={v[-4:]}')
+          out.append('TOKEN_LOCATION_INVENTORY_END')
+
+          Path('.github/masked-runtime-map.txt').write_text('\n'.join(out) + '\n')
+          PY
+
+      - name: Commit masked report only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/masked-runtime-map.txt
+          git commit -m "Add temporary masked runtime mapping report"
+          git push origin HEAD:custom-mpv-genre
