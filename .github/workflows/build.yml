@@ -31,7 +31,25 @@ jobs:
           fetch-depth: 0
 
       - name: Apply only requested additions
-        run: python3 .github/scripts/apply-only-additions.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/apply-only-additions.py')
+          text = p.read_text(encoding='utf-8')
+          old = '''                ParentalGuideOverlay(
+                    warnings = uiState.parentalWarnings,
+                    isVisible = uiState.showParentalGuide,'''
+          new = '''        ParentalGuideOverlay(
+            warnings = uiState.parentalWarnings,
+            isVisible = uiState.showParentalGuide,'''
+          if old not in text:
+              raise SystemExit('Expected strict PlayerScreen anchor was not found in helper script')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          python3 .github/scripts/apply-only-additions.py
+          git checkout -- .github/scripts/apply-only-additions.py
 
       - name: Verify additive scope
         shell: bash
