@@ -1,0 +1,100 @@
+name: Inspect official runtime config mapping safely
+
+on:
+  push:
+    branches:
+      - custom-mpv-genre
+    paths:
+      - .github/workflows/inspect-official-runtime-map.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: custom-mpv-genre
+          fetch-depth: 1
+
+      - name: Download and decompile official Nuvio APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/nuvio.apk \
+            https://github.com/NuvioMedia/NuvioTV/releases/download/0.8.10-beta/app-full-arm64-v8a-release.apk
+          curl -L --fail --retry 3 -o /tmp/jadx.zip \
+            https://github.com/skylot/jadx/releases/download/v1.5.3/jadx-1.5.3.zip
+          unzip -q /tmp/jadx.zip -d /tmp/jadx-bin
+          /tmp/jadx-bin/bin/jadx --no-res -d /tmp/nuvio-src /tmp/nuvio.apk >/dev/null 2>&1 || true
+
+      - name: Print masked runtime mapping contexts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          roots = Path('/tmp/nuvio-src/sources')
+          keywords = [
+              'supabase', 'trailer2', 'nuvioapp.space', 'introdb', 'tapframe',
+              'simkl', 'themoviedb', 'tmdb', 'trakt', 'premiumize',
+              'api.nuvio.tv', 'parental', 'supporters', 'playback-report'
+          ]
+          url_re = re.compile(r'https?://[^"\\\s]+')
+          quoted_re = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+          long_token_re = re.compile(r'^[A-Za-z0-9_\-.]{20,}$')
+
+          def safe_literal(value: str) -> str:
+              if value.startswith('http://') or value.startswith('https://'):
+                  return value
+              if value.startswith('eyJ') and len(value) > 20:
+                  return f'<JWT len={len(value)} {value[:6]}...{value[-4:]}>'
+              if long_token_re.match(value) and len(value) >= 24:
+                  return f'<TOKEN len={len(value)} {value[:4]}...{value[-4:]}>'
+              return value
+
+          hits = []
+          for p in roots.rglob('*.java'):
+              try:
+                  lines = p.read_text(errors='ignore').splitlines()
+              except Exception:
+                  continue
+              lowered = '\n'.join(lines).lower()
+              if not any(k in lowered for k in keywords):
+                  continue
+              for i, line in enumerate(lines):
+                  low = line.lower()
+                  if not any(k in low for k in keywords):
+                      continue
+                  start, end = max(0, i - 10), min(len(lines), i + 11)
+                  block = []
+                  for j in range(start, end):
+                      rendered = quoted_re.sub(lambda m: '"' + safe_literal(m.group(1)) + '"', lines[j])
+                      block.append(f'{j+1}: {rendered}')
+                  hits.append((str(p), i + 1, '\n'.join(block)))
+
+          print('RUNTIME_CONTEXT_BEGIN')
+          for p, line, block in hits[:140]:
+              print(f'--- {p}:{line} ---')
+              print(block)
+          print(f'TOTAL_CONTEXT_HITS={len(hits)}')
+          print('RUNTIME_CONTEXT_END')
+
+          print('URL_INVENTORY_BEGIN')
+          urls = set()
+          for p in roots.rglob('*.java'):
+              try:
+                  text = p.read_text(errors='ignore')
+              except Exception:
+                  continue
+              for u in url_re.findall(text):
+                  ul = u.lower()
+                  if any(k in ul for k in keywords):
+                      urls.add(u.rstrip('/);,'))
+          for u in sorted(urls):
+              print(u)
+          print('URL_INVENTORY_END')
+          PY
