@@ -20,8 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
-      LOCAL_DEV_PROPERTIES_BASE64: ${{ secrets.LOCAL_DEV_PROPERTIES_BASE64 }}
       CI_USE_DEBUG_SIGNING: "true"
 
     steps:
@@ -30,73 +28,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply only requested additions
+      - name: Configure official Nuvio public backend
         shell: bash
         run: |
           set -euo pipefail
-          python3 -c 'from pathlib import Path; p=Path(".github/scripts/apply-only-additions.py"); t=p.read_text(encoding="utf-8"); old="                ParentalGuideOverlay(\n                    warnings = uiState.parentalWarnings,\n                    isVisible = uiState.showParentalGuide,"; new="        ParentalGuideOverlay(\n            warnings = uiState.parentalWarnings,\n            isVisible = uiState.showParentalGuide,"; assert t.count(old)==1, "strict PlayerScreen helper anchor missing"; p.write_text(t.replace(old,new,1),encoding="utf-8")'
-          python3 .github/scripts/apply-only-additions.py
-          git checkout -- .github/scripts/apply-only-additions.py
+          discovery="${RUNNER_TEMP}/nuvio-discovery.json"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://api.nuvio.tv/.well-known/nuvio \
+            -o "$discovery"
 
-      - name: Verify additive scope
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          changed="$(git diff --name-only)"
-          if [[ -z "$changed" ]]; then
-            echo "No source changes were produced." >&2
-            exit 1
-          fi
+          python3 - "$discovery" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
 
-          while IFS= read -r path; do
-            case "$path" in
-              app/src/main/java/com/nuvio/tv/data/local/PlayerSettingsDataStore.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsViewModel.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackAudioSettings.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsSections.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsScreen.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeController.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerInitialization.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerObservers.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMpv.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt|\
-              app/src/main/java/com/nuvio/tv/ui/screens/player/ParentalGuideOverlay.kt|\
-              app/src/main/res/values/strings.xml)
-                ;;
-              *)
-                echo "Unexpected changed file: $path" >&2
-                exit 1
-                ;;
-            esac
-          done <<< "$changed"
+          data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          backend = str(data.get("backend_url", "")).strip().rstrip("/")
+          key = str(data.get("publishable_key", "")).strip()
+          if not backend.startswith("https://"):
+              raise SystemExit("Official backend discovery returned an invalid backend_url")
+          if len(key) < 20:
+              raise SystemExit("Official backend discovery returned an invalid publishable_key")
 
-          echo "Verified changed files:"
-          printf '%s\n' "$changed"
+          lines = [
+              f"NUVIO_SUPABASE_URL={backend}",
+              f"NUVIO_SUPABASE_ANON_KEY={key}",
+              "NUVIO_SUPABASE_FALLBACK_URL=",
+              f"AVATAR_PUBLIC_BASE_URL={backend}/storage/v1/object/public/avatars",
+              "TV_LOGIN_WEB_BASE_URL=https://nuvio.tv/tv-login",
+              "INTRODB_API_URL=https://api.introdb.app/",
+              "SUPPORTERS_API_BASE_URL=https://nuvio.tv/",
+              "SUPPORT_URL=https://nuvio.tv/support",
+              "PLAYBACK_REPORTS_BASE_URL=https://nuvio.tv/",
+          ]
+          Path("local.properties").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
 
-      - name: Commit requested additions
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java app/src/main/res/values/strings.xml
-          git commit -m "Add MPV deband, dither and genre overlay [skip ci]"
-          git push origin HEAD:dev
-
-      - name: Configure existing local properties when available
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${LOCAL_PROPERTIES_BASE64:-}" ]]; then
-            printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
-          fi
-          if [[ -n "${LOCAL_DEV_PROPERTIES_BASE64:-}" ]]; then
-            printf '%s' "$LOCAL_DEV_PROPERTIES_BASE64" | base64 --decode > local.dev.properties
-          fi
+          # Verify presence without printing the public key value into Actions logs.
+          grep -Eq '^NUVIO_SUPABASE_URL=https://.+' local.properties
+          grep -Eq '^NUVIO_SUPABASE_ANON_KEY=.{20,}$' local.properties
+          echo "Official Nuvio backend configuration loaded."
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -126,10 +97,9 @@ jobs:
             echo "No APK produced." >&2
             exit 1
           fi
-          target_sha="$(git rev-parse HEAD)"
           tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$tag" \
-            --target "$target_sha" \
+            --target "$(git rev-parse HEAD)" \
             --title "build" \
-            --notes $'Only requested additions:\n- MPV Deband toggle\n- MPV Dither toggle directly below Deband\n- dither-depth=auto\n- dither=error-diffusion\n- error-diffusion=sierra-lite\n- Always include genres in the existing parental/content-warning overlay\n\nNo existing app settings were intentionally removed or replaced.' \
+            --notes $'Crash-fixed build.\n\nFix: the recreated fork had no copied Actions secrets, so the previous release was built with an empty Nuvio backend URL/key and could crash during SupabaseClient creation at startup. This build resolves the official backend URL and public client key from https://api.nuvio.tv/.well-known/nuvio during CI before compiling.' \
             "${apks[@]}"
