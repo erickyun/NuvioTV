@@ -1,0 +1,123 @@
+name: Validate custom MPV and genre changes
+
+on:
+  push:
+    branches:
+      - custom-mpv-genre
+    paths:
+      - .github/workflows/validate-custom-mpv-genre.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout clean test branch
+        uses: actions/checkout@v4
+        with:
+          ref: custom-mpv-genre
+          fetch-depth: 0
+
+      - name: Apply targeted source patch
+        run: |
+          python3 .github/scripts/apply_custom_mpv_genre.py
+          git diff --check
+          git status --short
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore production local properties
+        env:
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
+        run: |
+          if [ -z "$LOCAL_PROPERTIES_BASE64" ]; then
+            echo "LOCAL_PROPERTIES_BASE64: MISSING"
+            exit 1
+          fi
+          printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
+
+          required=(
+            NUVIO_SUPABASE_URL
+            NUVIO_SUPABASE_ANON_KEY
+            NUVIO_SUPABASE_FALLBACK_URL
+            PARENTAL_GUIDE_API_URL
+            INTRODB_API_URL
+            TRAILER_API_URL
+            IMDB_RATINGS_API_BASE_URL
+            IMDB_TAPFRAME_API_BASE_URL
+            TRAKT_CLIENT_ID
+            TRAKT_CLIENT_SECRET
+            SIMKL_CLIENT_ID
+            TMDB_API_KEY
+            AVATAR_PUBLIC_BASE_URL
+            UNIQUE_CONTRIBUTIONS_BASE_URL
+            PLAYBACK_REPORTS_BASE_URL
+            PREMIUMIZE_CLIENT_ID
+          )
+
+          missing=0
+          for key in "${required[@]}"; do
+            if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*[^[:space:]].*$" local.properties; then
+              echo "${key}: present"
+            else
+              echo "${key}: MISSING"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Build full production-config APK
+        env:
+          CI_USE_DEBUG_SIGNING: "true"
+        run: ./gradlew :app:assembleFullRelease --stacktrace
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-custom-mpv-genre-full-release
+          path: app/build/outputs/apk/full/release/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit only verified custom source
+        run: |
+          rm -f .github/workflows/validate-custom-mpv-genre.yml
+          rm -f .github/scripts/apply_custom_mpv_genre.py
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            app/src/main/java/com/nuvio/tv/data/local/MpvVideoProcessingSettings.kt \
+            app/src/main/java/com/nuvio/tv/data/local/PlayerSettingsDataStore.kt \
+            app/src/main/java/com/nuvio/tv/core/sync/ProfileSettingsSyncService.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsViewModel.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackMpvVideoProcessingSettings.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsSections.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackSettingsScreen.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeController.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerInitialization.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMpv.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerObservers.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/ParentalGuideOverlay.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt \
+            app/src/main/res/values/strings.xml
+          git add -u .github/workflows/validate-custom-mpv-genre.yml .github/scripts/apply_custom_mpv_genre.py
+
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m "Add MPV video processing controls and genre overlay"
+          git push origin HEAD:custom-mpv-genre
