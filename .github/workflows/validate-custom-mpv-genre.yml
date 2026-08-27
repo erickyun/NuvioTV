@@ -18,10 +18,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: custom-mpv-genre
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Apply targeted source patch
         run: |
+          python3 .github/scripts/repair_custom_patch_helper.py
           python3 .github/scripts/apply_custom_mpv_genre.py
           git diff --check
           git status --short
@@ -93,6 +94,7 @@ jobs:
         run: |
           rm -f .github/workflows/validate-custom-mpv-genre.yml
           rm -f .github/scripts/apply_custom_mpv_genre.py
+          rm -f .github/scripts/repair_custom_patch_helper.py
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -115,7 +117,10 @@ jobs:
             app/src/main/java/com/nuvio/tv/ui/screens/player/ParentalGuideOverlay.kt \
             app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt \
             app/src/main/res/values/strings.xml
-          git add -u .github/workflows/validate-custom-mpv-genre.yml .github/scripts/apply_custom_mpv_genre.py
+          git add -u \
+            .github/workflows/validate-custom-mpv-genre.yml \
+            .github/scripts/apply_custom_mpv_genre.py \
+            .github/scripts/repair_custom_patch_helper.py
 
           git diff --cached --check
           git diff --cached --stat
