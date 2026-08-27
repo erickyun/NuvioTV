@@ -1,4 +1,5 @@
 name: Validate custom MPV and genre changes
+# validation retry after upstream anchor alignment
 
 on:
   push:
