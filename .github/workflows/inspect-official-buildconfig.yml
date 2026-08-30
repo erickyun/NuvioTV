@@ -1,0 +1,28 @@
+name: inspect-official-buildconfig
+
+on:
+  push:
+    branches: [build-final]
+    paths: [.github/workflows/inspect-official-buildconfig.yml]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decompile official 0.8.11 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/nuvio.apk https://github.com/NuvioMedia/NuvioTV/releases/download/0.8.11-beta/app-full-arm64-v8a-release.apk
+          curl -L --fail --retry 3 -o /tmp/jadx.zip https://github.com/skylot/jadx/releases/download/v1.5.3/jadx-1.5.3.zip
+          unzip -q /tmp/jadx.zip -d /tmp/jadx-bin
+          /tmp/jadx-bin/bin/jadx --no-res -d /tmp/nuvio-src /tmp/nuvio.apk >/dev/null 2>&1 || true
+      - name: Inspect config symbols safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'BuildConfig files:'
+          find /tmp/nuvio-src/sources -type f -iname '*BuildConfig*.java' -print | head -50 || true
+          echo 'Known config symbol occurrences:'
+          grep -RIlE 'SUPABASE_URL|TRAKT_CLIENT_ID|TMDB_API_KEY|PREMIUMIZE_CLIENT_ID|TRAILER_API_URL|IMDB_RATINGS_API_BASE_URL' /tmp/nuvio-src/sources | head -80 || true
