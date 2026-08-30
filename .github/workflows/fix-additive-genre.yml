@@ -1,0 +1,52 @@
+name: fix-additive-genre
+
+on:
+  push:
+    branches: [build-final]
+    paths: [.github/workflows/fix-additive-genre.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build-final
+          fetch-depth: 1
+      - name: Restore upstream warning files and add separate genre overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote add official https://github.com/NuvioMedia/NuvioTV.git
+          git fetch --depth=1 official 0a810f8bf4c70abffb3eb890e23733fe5b438901
+          git checkout FETCH_HEAD -- \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/ParentalGuideOverlay.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt \
+            app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt
+          python3 .github/scripts/fix_genre_additive.py
+          git diff --check
+          echo 'Final app diff vs official upstream:'
+          git diff --numstat FETCH_HEAD -- app/
+          if git diff --numstat FETCH_HEAD -- app/ | awk '$2 != 0 {print; bad=1} END {exit bad}'; then
+            echo 'Verified: final app diff has zero deletions.'
+          else
+            echo 'ERROR: app diff contains deletions.' >&2
+            exit 1
+          fi
+      - name: Commit clean additive source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/inspect-official-buildconfig.yml
+          rm -f .github/workflows/fix-additive-genre.yml
+          rm -f .github/scripts/fix_genre_additive.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/
+          git add -u .github/workflows/inspect-official-buildconfig.yml .github/workflows/fix-additive-genre.yml .github/scripts/fix_genre_additive.py
+          git diff --cached --check
+          git commit -m "Keep genre overlay fully additive"
+          git push origin HEAD:build-final
