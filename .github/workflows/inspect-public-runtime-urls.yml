@@ -1,0 +1,18 @@
+name: inspect-public-runtime-urls
+
+on:
+  push:
+    branches: [custom-mpv-genre]
+    paths: [.github/workflows/inspect-public-runtime-urls.yml]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract only public endpoint URLs from official APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/nuvio.apk https://github.com/NuvioMedia/NuvioTV/releases/download/0.8.11-beta/app-full-arm64-v8a-release.apk
+          strings /tmp/nuvio.apk | grep -Eo 'https?://[^"[:space:]\\]+' | sed 's/[?&].*$//' | sort -u | grep -Ei 'nuvio|introdb|imdb|trailer|tapframe|trakt|tmdb|simkl|premiumize|parental|rating' || true
