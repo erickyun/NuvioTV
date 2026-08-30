@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.SurfaceHolder
 import com.nuvio.tv.data.local.MpvHardwareDecodeMode
+import com.nuvio.tv.data.local.MpvVideoProcessingSettings
 import com.nuvio.tv.data.local.SubtitleStyleSettings
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.Utils
@@ -244,6 +245,44 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
             mpv.setPropertyString("hwdec", mode.toMpvHwdecValue())
         }.onFailure {
             Log.w(TAG, "Failed to apply mpv hardware decode mode ($mode): ${it.message}")
+        }
+    }
+
+    fun applyVideoProcessingSettings(settings: MpvVideoProcessingSettings) {
+        if (!initialized) return
+        runCatching {
+            mpv.setPropertyString("deband", if (settings.debandEnabled) "yes" else "no")
+            mpv.setPropertyString("deband-iterations", settings.debandIterations.toString())
+            mpv.setPropertyString("deband-threshold", settings.debandThreshold.toString())
+            mpv.setPropertyString("deband-range", settings.debandRange.toString())
+            mpv.setPropertyString("deband-grain", settings.debandGrain.toString())
+
+            if (settings.ditherEnabled) {
+                val ditherMode = when (settings.ditherMode) {
+                    MpvVideoProcessingSettings.DITHER_MODE_FRUIT -> "fruit"
+                    MpvVideoProcessingSettings.DITHER_MODE_ORDERED -> "ordered"
+                    else -> "error-diffusion"
+                }
+                val ditherDepth = if (settings.ditherDepth == MpvVideoProcessingSettings.DITHER_DEPTH_AUTO) {
+                    "auto"
+                } else {
+                    settings.ditherDepth.toString()
+                }
+                val errorDiffusion = when (settings.errorDiffusionKernel) {
+                    MpvVideoProcessingSettings.ERROR_DIFFUSION_SIMPLE -> "simple"
+                    MpvVideoProcessingSettings.ERROR_DIFFUSION_FLOYD_STEINBERG -> "floyd-steinberg"
+                    MpvVideoProcessingSettings.ERROR_DIFFUSION_ATKINSON -> "atkinson"
+                    MpvVideoProcessingSettings.ERROR_DIFFUSION_BURKES -> "burkes"
+                    else -> "sierra-lite"
+                }
+                mpv.setPropertyString("dither-depth", ditherDepth)
+                mpv.setPropertyString("dither", ditherMode)
+                mpv.setPropertyString("error-diffusion", errorDiffusion)
+            } else {
+                mpv.setPropertyString("dither-depth", "no")
+            }
+        }.onFailure {
+            Log.w(TAG, "Failed to apply mpv video processing settings: ${it.message}")
         }
     }
 

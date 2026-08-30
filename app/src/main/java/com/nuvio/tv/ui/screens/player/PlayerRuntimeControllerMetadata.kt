@@ -70,8 +70,13 @@ internal fun PlayerRuntimeController.applyMetaDetails(meta: Meta) {
         state.copy(
             description = description ?: state.description,
             castMembers = if (meta.castMembers.isNotEmpty()) meta.castMembers else state.castMembers,
+            genres = meta.genres.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
             isNextEpisodeMetadataResolved = true
         )
+    }
+
+    if (_uiState.value.isPlaying) {
+        tryShowParentalGuide()
     }
 }
 
@@ -424,7 +429,10 @@ private fun SkipInterval.autoSkipKey(): String =
 
 internal fun PlayerRuntimeController.tryShowParentalGuide() {
     val state = _uiState.value
-    if (!state.parentalGuideHasShown && state.parentalWarnings.isNotEmpty() && !playbackStartedForParentalGuide) {
+    if (!state.parentalGuideHasShown &&
+        (state.parentalWarnings.isNotEmpty() || state.genres.isNotEmpty()) &&
+        !playbackStartedForParentalGuide
+    ) {
         playbackStartedForParentalGuide = true
         _uiState.update { it.copy(showParentalGuide = true, parentalGuideHasShown = true) }
     }

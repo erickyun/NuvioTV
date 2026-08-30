@@ -75,6 +75,7 @@ data class PlayerUiState(
     val logo: String? = null,
     val description: String? = null,
     val castMembers: List<MetaCastMember> = emptyList(),
+    val genres: List<String> = emptyList(),
     val showControls: Boolean = true,
     val showSeekOverlay: Boolean = false,
     val pendingPreviewSeekPosition: Long? = null,

@@ -116,6 +116,15 @@ internal fun PlaybackSettingsSections(
     onShowAudioOutputChannelsDialog: () -> Unit,
     onShowDecoderPriorityDialog: () -> Unit,
     onShowMpvHardwareDecodeModeDialog: () -> Unit,
+    onSetMpvDebandEnabled: (Boolean) -> Unit,
+    onSetMpvDebandIterations: (Int) -> Unit,
+    onSetMpvDebandThreshold: (Int) -> Unit,
+    onSetMpvDebandRange: (Int) -> Unit,
+    onSetMpvDebandGrain: (Int) -> Unit,
+    onSetMpvDitherEnabled: (Boolean) -> Unit,
+    onSetMpvDitherMode: (Int) -> Unit,
+    onSetMpvDitherDepth: (Int) -> Unit,
+    onSetMpvErrorDiffusionKernel: (Int) -> Unit,
     onShowLanguageDialog: () -> Unit,
     onShowSecondaryLanguageDialog: () -> Unit,
     onShowTextColorDialog: () -> Unit,
@@ -589,6 +598,21 @@ internal fun PlaybackSettingsSections(
                 onItemFocused = { focusedSection = PlaybackSection.AUDIO_TRAILER },
                 enabled = !generalUi.isExternalPlayer,
                 videoExtraItems = {
+                    mpvVideoProcessingSettingsItems(
+                        playerSettings = playerSettings,
+                        onSetDebandEnabled = onSetMpvDebandEnabled,
+                        onSetDebandIterations = onSetMpvDebandIterations,
+                        onSetDebandThreshold = onSetMpvDebandThreshold,
+                        onSetDebandRange = onSetMpvDebandRange,
+                        onSetDebandGrain = onSetMpvDebandGrain,
+                        onSetDitherEnabled = onSetMpvDitherEnabled,
+                        onSetDitherMode = onSetMpvDitherMode,
+                        onSetDitherDepth = onSetMpvDitherDepth,
+                        onSetErrorDiffusionKernel = onSetMpvErrorDiffusionKernel,
+                        onItemFocused = { focusedSection = PlaybackSection.AUDIO_TRAILER },
+                        enabled = !generalUi.isExternalPlayer
+                    )
+
                     item(key = "general_afr_header") {
                         PlaybackSectionHeader(
                             title = stringResource(R.string.playback_auto_frame_rate),

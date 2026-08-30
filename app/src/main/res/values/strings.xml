@@ -3135,4 +3135,29 @@
     <string name="stream_test_video_bitrate">Average Video Bitrate: %1$s</string>
     <string name="stream_test_error_connection">Connection failed. The last played stream link may have expired or is unreachable. Please play the video again and retry.</string>
 
+
+    <!-- MPV video processing -->
+    <string name="playback_mpv_deband_title">MPV Deband</string>
+    <string name="playback_mpv_deband_subtitle">Reduce visible banding with mpv video processing.</string>
+    <string name="playback_mpv_deband_iterations">Deband iterations</string>
+    <string name="playback_mpv_deband_iterations_subtitle">mpv deband-iterations (0–16). Default: 1.</string>
+    <string name="playback_mpv_deband_threshold">Deband threshold</string>
+    <string name="playback_mpv_deband_threshold_subtitle">mpv deband-threshold (0–4096). Default: 48.</string>
+    <string name="playback_mpv_deband_range">Deband range</string>
+    <string name="playback_mpv_deband_range_subtitle">mpv deband-range (1–64). Default: 16.</string>
+    <string name="playback_mpv_deband_grain">Deband grain</string>
+    <string name="playback_mpv_deband_grain_subtitle">mpv deband-grain (0–4096). Default: 32.</string>
+    <string name="playback_mpv_dither_title">MPV Dither</string>
+    <string name="playback_mpv_dither_subtitle">Enable configurable mpv output dithering.</string>
+    <string name="playback_mpv_dither_mode">Dither algorithm</string>
+    <string name="playback_mpv_dither_mode_subtitle">Choose fruit, ordered, or error-diffusion dithering.</string>
+    <string name="playback_mpv_dither_fruit">Fruit</string>
+    <string name="playback_mpv_dither_ordered">Ordered</string>
+    <string name="playback_mpv_dither_error_diffusion">Error diffusion</string>
+    <string name="playback_mpv_dither_depth">Dither depth</string>
+    <string name="playback_mpv_dither_depth_subtitle">Target output bit depth. Auto follows mpv display detection.</string>
+    <string name="playback_mpv_dither_depth_auto">Auto</string>
+    <string name="playback_mpv_dither_depth_bits">%1$d-bit</string>
+    <string name="playback_mpv_error_diffusion_kernel">Error diffusion kernel</string>
+    <string name="playback_mpv_error_diffusion_kernel_subtitle">Used when the dither algorithm is Error diffusion.</string>
 </resources>

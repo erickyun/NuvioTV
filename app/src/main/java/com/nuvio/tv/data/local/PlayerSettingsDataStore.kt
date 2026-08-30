@@ -258,6 +258,7 @@ data class PlayerSettings(
     val dv7LibdoviModeOverride: Int = -1,
     val stripHdr10PlusSei: Boolean = false,
     val mpvHardwareDecodeMode: MpvHardwareDecodeMode = MpvHardwareDecodeMode.AUTO_SAFE,
+    val mpvVideoProcessing: MpvVideoProcessingSettings = MpvVideoProcessingSettings(),
     // Display settings
     val frameRateMatchingMode: FrameRateMatchingMode = FrameRateMatchingMode.OFF,
     val resolutionMatchingEnabled: Boolean = false,
@@ -521,6 +522,15 @@ class PlayerSettingsDataStore @Inject constructor(
     private val dv7LibdoviModeOverrideKey = intPreferencesKey("dv7_libdovi_mode_override")
     private val stripHdr10PlusSeiKey = booleanPreferencesKey("strip_hdr10plus_sei")
     private val mpvHardwareDecodeModeKey = stringPreferencesKey("mpv_hardware_decode_mode")
+    private val mpvDebandEnabledKey = booleanPreferencesKey("mpv_deband_enabled")
+    private val mpvDebandIterationsKey = intPreferencesKey("mpv_deband_iterations")
+    private val mpvDebandThresholdKey = intPreferencesKey("mpv_deband_threshold")
+    private val mpvDebandRangeKey = intPreferencesKey("mpv_deband_range")
+    private val mpvDebandGrainKey = intPreferencesKey("mpv_deband_grain")
+    private val mpvDitherEnabledKey = booleanPreferencesKey("mpv_dither_enabled")
+    private val mpvDitherModeKey = intPreferencesKey("mpv_dither_mode")
+    private val mpvDitherDepthKey = intPreferencesKey("mpv_dither_depth")
+    private val mpvErrorDiffusionKernelKey = intPreferencesKey("mpv_error_diffusion_kernel")
     private val frameRateMatchingKey = booleanPreferencesKey("frame_rate_matching")
     private val frameRateMatchingModeKey = stringPreferencesKey("frame_rate_matching_mode")
     private val resolutionMatchingEnabledKey = booleanPreferencesKey("resolution_matching_enabled")
@@ -872,6 +882,45 @@ class PlayerSettingsDataStore @Inject constructor(
                 dv7LibdoviModeOverride = (prefs[dv7LibdoviModeOverrideKey] ?: -1).coerceIn(-1, 4),
                 stripHdr10PlusSei = prefs[stripHdr10PlusSeiKey] ?: false,
                 mpvHardwareDecodeMode = parseMpvHardwareDecodeMode(prefs[mpvHardwareDecodeModeKey]),
+                mpvVideoProcessing = MpvVideoProcessingSettings(
+                    debandEnabled = prefs[mpvDebandEnabledKey] ?: false,
+                    debandIterations = (prefs[mpvDebandIterationsKey]
+                        ?: MpvVideoProcessingSettings.DEFAULT_DEBAND_ITERATIONS).coerceIn(
+                        MpvVideoProcessingSettings.MIN_DEBAND_ITERATIONS,
+                        MpvVideoProcessingSettings.MAX_DEBAND_ITERATIONS
+                    ),
+                    debandThreshold = (prefs[mpvDebandThresholdKey]
+                        ?: MpvVideoProcessingSettings.DEFAULT_DEBAND_THRESHOLD).coerceIn(
+                        MpvVideoProcessingSettings.MIN_DEBAND_THRESHOLD,
+                        MpvVideoProcessingSettings.MAX_DEBAND_THRESHOLD
+                    ),
+                    debandRange = (prefs[mpvDebandRangeKey]
+                        ?: MpvVideoProcessingSettings.DEFAULT_DEBAND_RANGE).coerceIn(
+                        MpvVideoProcessingSettings.MIN_DEBAND_RANGE,
+                        MpvVideoProcessingSettings.MAX_DEBAND_RANGE
+                    ),
+                    debandGrain = (prefs[mpvDebandGrainKey]
+                        ?: MpvVideoProcessingSettings.DEFAULT_DEBAND_GRAIN).coerceIn(
+                        MpvVideoProcessingSettings.MIN_DEBAND_GRAIN,
+                        MpvVideoProcessingSettings.MAX_DEBAND_GRAIN
+                    ),
+                    ditherEnabled = prefs[mpvDitherEnabledKey] ?: false,
+                    ditherMode = (prefs[mpvDitherModeKey]
+                        ?: MpvVideoProcessingSettings.DITHER_MODE_ERROR_DIFFUSION).coerceIn(
+                        MpvVideoProcessingSettings.MIN_DITHER_MODE,
+                        MpvVideoProcessingSettings.MAX_DITHER_MODE
+                    ),
+                    ditherDepth = (prefs[mpvDitherDepthKey]
+                        ?: MpvVideoProcessingSettings.DITHER_DEPTH_AUTO).let { stored ->
+                        stored.takeIf { it in MpvVideoProcessingSettings.DITHER_DEPTH_VALUES }
+                            ?: MpvVideoProcessingSettings.DITHER_DEPTH_AUTO
+                    },
+                    errorDiffusionKernel = (prefs[mpvErrorDiffusionKernelKey]
+                        ?: MpvVideoProcessingSettings.ERROR_DIFFUSION_SIERRA_LITE).coerceIn(
+                        MpvVideoProcessingSettings.MIN_ERROR_DIFFUSION_KERNEL,
+                        MpvVideoProcessingSettings.MAX_ERROR_DIFFUSION_KERNEL
+                    )
+                ),
                 frameRateMatchingMode = prefs[frameRateMatchingModeKey]?.let {
                     runCatching { FrameRateMatchingMode.valueOf(it) }.getOrNull()
                 } ?: if (prefs[frameRateMatchingKey] == true) FrameRateMatchingMode.START_STOP else FrameRateMatchingMode.OFF,
@@ -1466,6 +1515,75 @@ class PlayerSettingsDataStore @Inject constructor(
     suspend fun setMpvHardwareDecodeMode(mode: MpvHardwareDecodeMode) {
         store().edit { prefs ->
             prefs[mpvHardwareDecodeModeKey] = mode.name
+        }
+    }
+
+    suspend fun setMpvDebandEnabled(enabled: Boolean) {
+        store().edit { it[mpvDebandEnabledKey] = enabled }
+    }
+
+    suspend fun setMpvDebandIterations(value: Int) {
+        store().edit {
+            it[mpvDebandIterationsKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_DEBAND_ITERATIONS,
+                MpvVideoProcessingSettings.MAX_DEBAND_ITERATIONS
+            )
+        }
+    }
+
+    suspend fun setMpvDebandThreshold(value: Int) {
+        store().edit {
+            it[mpvDebandThresholdKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_DEBAND_THRESHOLD,
+                MpvVideoProcessingSettings.MAX_DEBAND_THRESHOLD
+            )
+        }
+    }
+
+    suspend fun setMpvDebandRange(value: Int) {
+        store().edit {
+            it[mpvDebandRangeKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_DEBAND_RANGE,
+                MpvVideoProcessingSettings.MAX_DEBAND_RANGE
+            )
+        }
+    }
+
+    suspend fun setMpvDebandGrain(value: Int) {
+        store().edit {
+            it[mpvDebandGrainKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_DEBAND_GRAIN,
+                MpvVideoProcessingSettings.MAX_DEBAND_GRAIN
+            )
+        }
+    }
+
+    suspend fun setMpvDitherEnabled(enabled: Boolean) {
+        store().edit { it[mpvDitherEnabledKey] = enabled }
+    }
+
+    suspend fun setMpvDitherMode(value: Int) {
+        store().edit {
+            it[mpvDitherModeKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_DITHER_MODE,
+                MpvVideoProcessingSettings.MAX_DITHER_MODE
+            )
+        }
+    }
+
+    suspend fun setMpvDitherDepth(value: Int) {
+        store().edit {
+            it[mpvDitherDepthKey] = value.takeIf { it in MpvVideoProcessingSettings.DITHER_DEPTH_VALUES }
+                ?: MpvVideoProcessingSettings.DITHER_DEPTH_AUTO
+        }
+    }
+
+    suspend fun setMpvErrorDiffusionKernel(value: Int) {
+        store().edit {
+            it[mpvErrorDiffusionKernelKey] = value.coerceIn(
+                MpvVideoProcessingSettings.MIN_ERROR_DIFFUSION_KERNEL,
+                MpvVideoProcessingSettings.MAX_ERROR_DIFFUSION_KERNEL
+            )
         }
     }
 

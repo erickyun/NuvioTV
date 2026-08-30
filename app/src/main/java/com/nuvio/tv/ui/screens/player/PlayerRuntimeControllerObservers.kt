@@ -383,6 +383,12 @@ internal fun PlayerRuntimeController.observeSubtitleSettings() {
                 mpvView?.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
             }
 
+            val previousMpvVideoProcessingSettings = mpvVideoProcessingSettings
+            mpvVideoProcessingSettings = settings.mpvVideoProcessing
+            if (isUsingMpvEngine() && previousMpvVideoProcessingSettings != mpvVideoProcessingSettings) {
+                mpvView?.applyVideoProcessingSettings(mpvVideoProcessingSettings)
+            }
+
             val resolvedAudioLanguages = resolvePreferredAudioLanguages(
                 preferredAudioLanguage = settings.preferredAudioLanguage,
                 secondaryPreferredAudioLanguage = settings.secondaryPreferredAudioLanguage,
