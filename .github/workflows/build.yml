@@ -1,0 +1,125 @@
+name: build
+
+on:
+  push:
+    branches: [build-final]
+    paths: [.github/workflows/build.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
+      LOCAL_DEV_PROPERTIES_BASE64: ${{ secrets.LOCAL_DEV_PROPERTIES_BASE64 }}
+      CI_USE_DEBUG_SIGNING: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: build-final
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Configure production client properties
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${LOCAL_PROPERTIES_BASE64}" ]]; then
+            printf '%s' "${LOCAL_PROPERTIES_BASE64}" | base64 --decode > local.properties
+          else
+            : > local.properties
+          fi
+
+          if [[ -n "${LOCAL_DEV_PROPERTIES_BASE64}" ]]; then
+            printf '%s' "${LOCAL_DEV_PROPERTIES_BASE64}" | base64 --decode > local.dev.properties
+          fi
+
+          ensure_property() {
+            local key="$1"
+            local value="$2"
+            if ! grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*.+$" local.properties; then
+              printf '%s=%s\n' "${key}" "${value}" >> local.properties
+            fi
+          }
+
+          # Nuvio's discovery document intentionally exposes the public client
+          # backend URL + publishable key used by supported clients.
+          discovery="$(curl -fsSL --retry 3 https://api.nuvio.tv/.well-known/nuvio)"
+          backend_url="$(printf '%s' "${discovery}" | jq -er '.backend_url // empty')"
+          publishable_key="$(printf '%s' "${discovery}" | jq -er '.publishable_key // empty')"
+          [[ -n "${backend_url}" && -n "${publishable_key}" ]]
+
+          ensure_property NUVIO_SUPABASE_URL "${backend_url}"
+          ensure_property NUVIO_SUPABASE_ANON_KEY "${publishable_key}"
+          ensure_property NUVIO_SUPABASE_FALLBACK_URL ""
+          ensure_property AVATAR_PUBLIC_BASE_URL "${backend_url%/}/storage/v1/object/public/avatars"
+          ensure_property TV_LOGIN_WEB_BASE_URL "https://nuvio.tv/tv-login"
+          ensure_property DEVICE_LOGIN_WEB_BASE_URL "https://nuvio.tv/link"
+          ensure_property INTRODB_API_URL "https://api.introdb.app/"
+          ensure_property SUPPORTERS_API_BASE_URL "https://nuvio.tv/"
+          ensure_property SUPPORT_URL "https://nuvio.tv/support"
+          ensure_property PLAYBACK_REPORTS_BASE_URL "https://nuvio.tv/"
+          ensure_property TRAKT_API_URL "https://api.trakt.tv/"
+          ensure_property TRAKT_REDIRECT_URI "urn:ietf:wg:oauth:2.0:oob"
+          ensure_property SIMKL_APP_NAME "nuvio"
+          ensure_property SPONSOR_NAMES "ragmehos."
+
+          # Never echo values. Show only whether optional integrations were supplied.
+          for key in TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET TMDB_API_KEY SIMKL_CLIENT_ID PREMIUMIZE_CLIENT_ID TRAILER_API_URL IMDB_RATINGS_API_BASE_URL IMDB_TAPFRAME_API_BASE_URL PARENTAL_GUIDE_API_URL UNIQUE_CONTRIBUTIONS_BASE_URL; do
+            if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*.+$" local.properties; then
+              echo "${key}=present"
+            else
+              echo "${key}=not-configured"
+            fi
+          done
+
+      - name: Verify additive app diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote add official https://github.com/NuvioMedia/NuvioTV.git
+          git fetch --depth=1 official 0a810f8bf4c70abffb3eb890e23733fe5b438901
+          git diff --check FETCH_HEAD -- app/
+          git diff --numstat FETCH_HEAD -- app/
+          if ! git diff --numstat FETCH_HEAD -- app/ | awk '$2 != 0 {bad=1} END {exit bad}'; then
+            echo 'App source is not additive-only.' >&2
+            exit 1
+          fi
+
+      - name: Build full release APKs
+        run: ./gradlew :app:assembleFullRelease --stacktrace
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: app/build/outputs/apk/full/release/*.apk
+          if-no-files-found: error
+
+      - name: Create build GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk/full/release -maxdepth 1 -type f -name '*.apk' -print | sort)
+          (( ${#apks[@]} > 0 ))
+          tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "${tag}" \
+            --target "${GITHUB_SHA}" \
+            --title "build" \
+            --notes "NuvioTV 0.8.11-beta (${GITHUB_SHA}) + additive MPV Deband/Dither controls + genre startup overlay." \
+            "${apks[@]}"
