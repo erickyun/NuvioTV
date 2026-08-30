@@ -76,6 +76,8 @@ data class PlayerUiState(
     val description: String? = null,
     val castMembers: List<MetaCastMember> = emptyList(),
     val genres: List<String> = emptyList(),
+    val showGenreGuide: Boolean = false,
+    val genreGuideHasShown: Boolean = false,
     val showControls: Boolean = true,
     val showSeekOverlay: Boolean = false,
     val pendingPreviewSeekPosition: Long? = null,
@@ -319,6 +321,7 @@ sealed class PlayerEvent {
     data object OnRetry : PlayerEvent()
     data object OnReportPlaybackIssue : PlayerEvent()
     data object OnParentalGuideHide : PlayerEvent()
+    data object OnGenreGuideHide : PlayerEvent()
     data class OnShowDisplayModeInfo(val info: DisplayModeInfo) : PlayerEvent()
     data object OnHideDisplayModeInfo : PlayerEvent()
     data object OnDismissPauseOverlay : PlayerEvent()

@@ -64,19 +64,22 @@ internal fun PlayerRuntimeController.applyMetaDetails(meta: Meta) {
         contentLanguage = meta.resolveContentLanguage()
     }
     val description = resolveDescription(meta)
+    val genres = meta.genres.map { it.trim() }.filter { it.isNotBlank() }.distinct()
 
     recomputeNextEpisode(resetVisibility = false)
     _uiState.update { state ->
         state.copy(
             description = description ?: state.description,
             castMembers = if (meta.castMembers.isNotEmpty()) meta.castMembers else state.castMembers,
-            genres = meta.genres.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+            genres = genres,
+            showGenreGuide = if (genres != state.genres) false else state.showGenreGuide,
+            genreGuideHasShown = if (genres != state.genres) false else state.genreGuideHasShown,
             isNextEpisodeMetadataResolved = true
         )
     }
 
-    if (_uiState.value.isPlaying) {
-        tryShowParentalGuide()
+    if (hasRenderedFirstFrame || _uiState.value.isPlaying) {
+        tryShowGenreGuide()
     }
 }
 
@@ -429,12 +432,16 @@ private fun SkipInterval.autoSkipKey(): String =
 
 internal fun PlayerRuntimeController.tryShowParentalGuide() {
     val state = _uiState.value
-    if (!state.parentalGuideHasShown &&
-        (state.parentalWarnings.isNotEmpty() || state.genres.isNotEmpty()) &&
-        !playbackStartedForParentalGuide
-    ) {
+    if (!state.parentalGuideHasShown && state.parentalWarnings.isNotEmpty() && !playbackStartedForParentalGuide) {
         playbackStartedForParentalGuide = true
         _uiState.update { it.copy(showParentalGuide = true, parentalGuideHasShown = true) }
+    }
+}
+
+internal fun PlayerRuntimeController.tryShowGenreGuide() {
+    val state = _uiState.value
+    if (!state.genreGuideHasShown && state.genres.isNotEmpty()) {
+        _uiState.update { it.copy(showGenreGuide = true, genreGuideHasShown = true) }
     }
 }
 

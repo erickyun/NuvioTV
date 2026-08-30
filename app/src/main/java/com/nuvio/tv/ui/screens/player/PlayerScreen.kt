@@ -1153,10 +1153,19 @@ fun PlayerScreen(
         // Parental guide overlay (shows when video first starts playing)
         ParentalGuideOverlay(
             warnings = uiState.parentalWarnings,
-            genres = uiState.genres,
             isVisible = uiState.showParentalGuide,
             onAnimationComplete = {
                 viewModel.onEvent(PlayerEvent.OnParentalGuideHide)
+            },
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
+        GenreGuideOverlay(
+            genres = uiState.genres,
+            warningCount = uiState.parentalWarnings.size,
+            isVisible = uiState.showGenreGuide,
+            onAnimationComplete = {
+                viewModel.onEvent(PlayerEvent.OnGenreGuideHide)
             },
             modifier = Modifier.align(Alignment.TopStart)
         )

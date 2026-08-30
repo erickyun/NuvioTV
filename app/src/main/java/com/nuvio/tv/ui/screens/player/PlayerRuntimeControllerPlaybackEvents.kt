@@ -196,6 +196,7 @@ internal fun PlayerRuntimeController.startProgressUpdates() {
                             firstFrameReady = pos > 0L || (playingNow && !cacheBuffering && playerDuration > 0L)
                             if (firstFrameReady) {
                                 hasRenderedFirstFrame = true
+                                tryShowGenreGuide()
                                 val clickToFirstFrameMs = launchStartedAtElapsedMs
                                     ?.let { (android.os.SystemClock.elapsedRealtime() - it).coerceAtLeast(0L) }
                                     ?: -1L
@@ -1619,6 +1620,9 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
         }
         PlayerEvent.OnParentalGuideHide -> {
             _uiState.update { it.copy(showParentalGuide = false) }
+        }
+        PlayerEvent.OnGenreGuideHide -> {
+            _uiState.update { it.copy(showGenreGuide = false) }
         }
         PlayerEvent.OnToggleTorrentStats -> {
             _uiState.update { it.copy(showTorrentStats = !it.showTorrentStats) }

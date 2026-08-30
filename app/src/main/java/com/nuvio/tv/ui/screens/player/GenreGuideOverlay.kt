@@ -2,10 +2,6 @@
 
 package com.nuvio.tv.ui.screens.player
 
-import com.nuvio.tv.ui.theme.NuvioTheme
-import com.nuvio.tv.ui.theme.ThemeColors
-import com.nuvio.tv.ui.theme.accentBrush
-
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -33,77 +29,65 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.nuvio.tv.ui.theme.NuvioTheme
+import com.nuvio.tv.ui.theme.ThemeColors
+import com.nuvio.tv.ui.theme.accentBrush
 import kotlinx.coroutines.delay
 
-private val ROW_HEIGHT = 18.dp
-private val ROW_GAP = NuvioTheme.spacing.xxs
+private val GENRE_ROW_HEIGHT = 18.dp
+private val GENRE_ROW_GAP = 2.dp
 
 /**
- * Parental guide overlay showing content warnings with animated vertical line + staggered items.
- *
- * Triggered by ViewModel when video first starts playing.
- * Completely independent of player controls.
- * Auto-hides after 5 seconds with reverse animation.
+ * Startup genre overlay. Kept separate from ParentalGuideOverlay so upstream
+ * content-warning behavior remains completely unchanged.
  */
 @Composable
-fun ParentalGuideOverlay(
-    warnings: List<ParentalWarning>,
+fun GenreGuideOverlay(
+    genres: List<String>,
+    warningCount: Int,
     isVisible: Boolean,
     onAnimationComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (warnings.isEmpty()) return
+    val displayGenres = remember(genres) {
+        genres.map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+    }
+    if (displayGenres.isEmpty()) return
 
-    val count = warnings.size
-    val totalLineHeight = (ROW_HEIGHT.value * count) + (ROW_GAP.value * (count - 1))
+    val count = displayGenres.size
+    val totalLineHeight = (GENRE_ROW_HEIGHT.value * count) + (GENRE_ROW_GAP.value * (count - 1))
     val accentBrush = ThemeColors.getColorPalette(NuvioTheme.currentTheme).accentBrush()
+    val warningOffset = if (warningCount > 0) (22 * warningCount + 8).dp else 0.dp
 
     val containerAlpha = remember { Animatable(0f) }
     val lineHeightFraction = remember { Animatable(0f) }
     val itemAlphas = remember(count) { List(count) { Animatable(0f) } }
     var animating by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isVisible) {
+    LaunchedEffect(isVisible, displayGenres) {
         if (isVisible && !animating) {
             animating = true
-
-            // FADE IN sequence
-            // Container fade in
             containerAlpha.animateTo(1f, tween(300))
-
-            // Line grows top to bottom
             lineHeightFraction.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
-
-            // Items fade in one by one (staggered after line)
             for (i in 0 until count) {
                 delay(80)
                 itemAlphas[i].animateTo(1f, tween(200))
             }
-
-            // Hold visible for 5 seconds
             delay(5000)
-
-            // FADE OUT sequence: items reverse order (bottom to top)
             for (i in (count - 1) downTo 0) {
                 delay(60)
                 itemAlphas[i].animateTo(0f, tween(150))
             }
-
-            // Line shrinks
             delay(100)
             lineHeightFraction.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
-
-            // Container fades out
             delay(200)
             containerAlpha.animateTo(0f, tween(200))
-
             animating = false
             onAnimationComplete()
         } else if (!isVisible && animating) {
-            // Quick hide if something forces it off (e.g. controls shown during animation)
-            for (i in (count - 1) downTo 0) {
-                itemAlphas[i].snapTo(0f)
-            }
+            for (i in (count - 1) downTo 0) itemAlphas[i].snapTo(0f)
             lineHeightFraction.snapTo(0f)
             containerAlpha.snapTo(0f)
             animating = false
@@ -116,10 +100,12 @@ fun ParentalGuideOverlay(
     Row(
         modifier = modifier
             .alpha(containerAlpha.value)
-            .padding(start = NuvioTheme.spacing.xxl, top = NuvioTheme.spacing.xl),
+            .padding(
+                start = NuvioTheme.spacing.xxl,
+                top = NuvioTheme.spacing.xl + warningOffset
+            ),
         verticalAlignment = Alignment.Top
     ) {
-        // Animated vertical line
         Box(
             modifier = Modifier
                 .width(3.dp)
@@ -127,34 +113,22 @@ fun ParentalGuideOverlay(
                 .clip(RoundedCornerShape(NuvioTheme.spacing.hairline))
                 .background(accentBrush)
         )
-
-        // Warning items
         Column(
             modifier = Modifier.padding(start = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(ROW_GAP)
+            verticalArrangement = Arrangement.spacedBy(GENRE_ROW_GAP)
         ) {
-            warnings.forEachIndexed { index, warning ->
+            displayGenres.forEachIndexed { index, genre ->
                 Row(
                     modifier = Modifier
-                        .height(ROW_HEIGHT)
+                        .height(GENRE_ROW_HEIGHT)
                         .alpha(itemAlphas.getOrNull(index)?.value ?: 0f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = warning.label,
+                        text = genre,
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.85f),
                         fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = " · ",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.4f),
-                    )
-                    Text(
-                        text = warning.severity,
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.5f),
                     )
                 }
             }
